@@ -920,11 +920,7 @@ async fn repl_command(
   worker.run_event_loop(false).await?;
 
   let eval_file_config = match repl_flags.eval_file {
-    Some(eval_file) => Some(tools::repl::EvalFileConfig::new(
-      vec![eval_file],
-      !ps.flags.no_remote,
-      ps.flags.unsafely_ignore_certificate_errors.clone(),
-    )?),
+    Some(eval_file) => Some(tools::repl::EvalFileConfig::new(vec![eval_file])?),
     None => None,
   };
 

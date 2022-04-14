@@ -31,23 +31,11 @@ use std::io::Read;
 #[derive(Debug, Clone)]
 pub struct EvalFileConfig {
   pub paths: Vec<String>,
-  pub allow_remote: bool,
-  pub unsafely_ignore_certificate_errors: Option<Vec<String>>,
 }
 
 impl EvalFileConfig {
-  pub fn new(
-    paths: Vec<String>,
-    allow_remote: bool,
-    // root_cert_store: Option<RootCertStore>,
-    // blob_store: BlobStore,
-    unsafely_ignore_certificate_errors: Option<Vec<String>>,
-  ) -> Result<Self, AnyError> {
-    Ok(Self {
-      paths,
-      allow_remote,
-      unsafely_ignore_certificate_errors,
-    })
+  pub fn new(paths: Vec<String>) -> Result<Self, AnyError> {
+    Ok(Self { paths })
   }
 }
 
@@ -92,26 +80,15 @@ async fn read_line_and_poll(
 }
 
 async fn read_eval_file(
+  ps: &ProcState,
   config: EvalFileConfig,
 ) -> Result<Vec<String>, AnyError> {
-  let dir = deno_dir::DenoDir::new(None)?;
-  let deps_cache_location = dir.root.join("deps");
-  let http_cache = HttpCache::new(&deps_cache_location);
-  let blob_store = BlobStore::default();
-  let file_fetcher = FileFetcher::new(
-    http_cache,
-    CacheSetting::ReloadAll,
-    config.allow_remote,
-    None,
-    blob_store.clone(),
-    config.unsafely_ignore_certificate_errors.clone(),
-  )?;
-
   let mut eval_sources: Vec<String> = Vec::new();
   for path in config.paths {
     let specifier =
       deno_core::resolve_import(path.as_str(), deno_core::DUMMY_SPECIFIER)?;
-    let file = file_fetcher
+    let file = ps
+      .file_fetcher
       .fetch(&specifier, &mut Permissions::allow_all())
       .await?;
     eval_sources.push((*file.source).clone());
@@ -138,7 +115,7 @@ pub async fn run(
   let editor = ReplEditor::new(helper, history_file_path);
 
   if let Some(eval_file_config) = maybe_eval_file_config {
-    match read_eval_file(eval_file_config).await {
+    match read_eval_file(ps, eval_file_config).await {
       Ok(eval_sources) => {
         for eval_source in eval_sources {
           let output = repl_session
